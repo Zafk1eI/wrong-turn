@@ -122,18 +122,11 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
@@ -164,17 +157,21 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
             const SizedBox(height: 24),
             _buildTravelModeSelector(),
             const SizedBox(height: 24),
-            ElevatedButton(
+            FilledButton(
               onPressed: _canBuildRoute() ? _handleRoutePlanning : null,
-              style: ElevatedButton.styleFrom(
+              style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(28),
                 ),
+                backgroundColor: Colors.green,
               ),
-              child: const Text(
+              child: Text(
                 'Проложить маршрут',
-                style: TextStyle(fontSize: 16),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -186,10 +183,10 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
   Widget _buildDragHandle() {
     return Center(
       child: Container(
-        width: 40,
+        width: 32,
         height: 4,
         decoration: BoxDecoration(
-          color: Colors.grey[300],
+          color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.4),
           borderRadius: BorderRadius.circular(2),
         ),
       ),
@@ -210,23 +207,57 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
             controller: controller,
             decoration: InputDecoration(
               hintText: hint,
-              prefixIcon: Icon(icon),
+              prefixIcon: Icon(
+                icon,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
               suffixIcon: IconButton(
                 icon: const Icon(Icons.map),
                 onPressed: () => _handleMapPointSelect(pointType),
+                style: IconButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(28),
+                borderSide: BorderSide(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(28),
+                borderSide: BorderSide(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(28),
+                borderSide: BorderSide(
+                  color: Theme.of(context).colorScheme.primary,
+                  width: 2,
+                ),
               ),
               filled: true,
-              fillColor: Colors.grey[100],
+              fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             ),
+          ),
+          suggestionsBoxDecoration: SuggestionsBoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            elevation: 4,
+            color: Theme.of(context).colorScheme.surface,
           ),
           suggestionsCallback: _getSuggestions,
           itemBuilder: (context, suggestion) {
             return ListTile(
-              leading: const Icon(Icons.location_on),
-              title: Text(suggestion.displayName),
+              leading: Icon(
+                Icons.location_on,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              title: Text(
+                suggestion.displayName,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
             );
           },
           onSuggestionSelected: (suggestion) {
@@ -234,9 +265,14 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
             final location = LatLng(suggestion.lat, suggestion.lon);
             onLocationSelected(location);
           },
-          noItemsFoundBuilder: (context) => const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('Ничего не найдено'),
+          noItemsFoundBuilder: (context) => Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Ничего не найдено',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
         ),
       ],
@@ -272,31 +308,39 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
     required String label,
   }) {
     final isSelected = _selectedMode == mode;
-    return InkWell(
-      onTap: () => setState(() => _selectedMode = mode),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? Theme.of(context).primaryColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? Colors.transparent : Colors.grey[300]!,
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _selectedMode = mode),
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.green : Colors.transparent,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: isSelected ? Colors.transparent : colorScheme.outline,
+              width: isSelected ? 0 : 1,
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : Colors.grey[600],
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.grey[600],
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.white : colorScheme.onSurface,
+                size: 20,
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: isSelected ? Colors.white : colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

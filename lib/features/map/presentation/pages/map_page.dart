@@ -225,87 +225,144 @@ class _MapPageState extends State<MapPage> {
             right: 16,
             child: Column(
               children: [
-                TypeAheadField<map_place.Place>(
-                  textFieldConfiguration: TextFieldConfiguration(
-                  controller: _searchController,
+                Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: TypeAheadField<map_place.Place>(
+                    textFieldConfiguration: TextFieldConfiguration(
+                      controller: _searchController,
                       decoration: InputDecoration(
                         hintText: 'Поиск места...',
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor: Theme.of(context).colorScheme.surface,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(28),
+                          borderSide: BorderSide.none,
                         ),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: _clearSelection,
-                            )
-                          : null,
-                      ),
-                  ),
-                  suggestionsCallback: (pattern) async {
-                    if (pattern.isEmpty) return [];
-                    final places = await _placesService.searchPlaces(pattern);
-                    if (places.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('По вашему запросу ничего не найдено'),
-                          duration: Duration(seconds: 2),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                          borderSide: BorderSide.none,
                         ),
-                      );
-                    }
-                    return places;
-                  },
-                  itemBuilder: (context, map_place.Place suggestion) {
-                    return ListTile(
-                      leading: Icon(suggestion.typeIcon),
-                      title: Text(suggestion.name),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Тип: ${suggestion.localizedType}'),
-                          Text('Координаты: ${suggestion.displayCoordinates}'),
-                        ],
-                      ),
-                      isThreeLine: true,
-                    );
-                  },
-                  onSuggestionSelected: (map_place.Place suggestion) {
-                    setState(() {
-                      _selectedPlace = suggestion;
-                      _markers.clear();
-                      _markers.add(
-                        Marker(
-                          point: suggestion.location,
-                          width: 40,
-                          height: 40,
-                          child: Icon(
-                            suggestion.typeIcon,
-                            color: Colors.red,
-                            size: 40,
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                          borderSide: BorderSide(
+                            color: Theme.of(context).colorScheme.primary,
+                            width: 2,
                           ),
                         ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: _clearSelection,
+                                style: IconButton.styleFrom(
+                                  foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              )
+                            : null,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      ),
+                    ),
+                    suggestionsBoxDecoration: SuggestionsBoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      elevation: 4,
+                      color: Theme.of(context).colorScheme.surface,
+                      constraints: const BoxConstraints(maxHeight: 300),
+                    ),
+                    suggestionsCallback: (pattern) async {
+                      if (pattern.isEmpty) return [];
+                      final places = await _placesService.searchPlaces(pattern);
+                      if (places.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('По вашему запросу ничего не найдено'),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            margin: const EdgeInsets.all(16),
+                          ),
+                        );
+                      }
+                      return places;
+                    },
+                    itemBuilder: (context, map_place.Place suggestion) {
+                      return ListTile(
+                        leading: Icon(
+                          suggestion.typeIcon,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        title: Text(
+                          suggestion.name,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Тип: ${suggestion.localizedType}',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            Text(
+                              'Координаты: ${suggestion.displayCoordinates}',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                        isThreeLine: true,
                       );
-                    });
-                    
-                    _mapController.move(suggestion.location, 15);
-                    _searchController.text = suggestion.name;
-                  },
-                  noItemsFoundBuilder: (context) => const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('Ничего не найдено'),
+                    },
+                    onSuggestionSelected: (map_place.Place suggestion) {
+                      setState(() {
+                        _selectedPlace = suggestion;
+                        _markers.clear();
+                        _markers.add(
+                          Marker(
+                            point: suggestion.location,
+                            width: 40,
+                            height: 40,
+                            child: Icon(
+                              suggestion.typeIcon,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 40,
+                            ),
+                          ),
+                        );
+                      });
+                      
+                      _mapController.move(suggestion.location, 15);
+                      _searchController.text = suggestion.name;
+                    },
+                    noItemsFoundBuilder: (context) => Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Ничего не найдено',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 if (_selectedPlace != null)
                   Container(
                     margin: const EdgeInsets.only(top: 8),
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(28),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -319,38 +376,45 @@ class _MapPageState extends State<MapPage> {
                             Expanded(
                               child: Text(
                                 _selectedPlace!.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
+                                style: Theme.of(context).textTheme.titleLarge,
                               ),
                             ),
                             IconButton(
                               icon: const Icon(Icons.close),
                               onPressed: _hideInfo,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
+                              style: IconButton.styleFrom(
+                                foregroundColor: Theme.of(context).colorScheme.onSurface,
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
-                        Text('Тип: ${_selectedPlace!.localizedType}'),
-                        Text('Координаты: ${_selectedPlace!.displayCoordinates}'),
-                        const SizedBox(height: 4),
-                        Text(_selectedPlace!.poiInfo),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Тип: ${_selectedPlace!.localizedType}',
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        Text(
+                          'Координаты: ${_selectedPlace!.displayCoordinates}',
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _selectedPlace!.poiInfo,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
                       ],
                     ),
                   ),
                 if (selectedRoute != null)
                   Container(
                     margin: const EdgeInsets.only(top: 8),
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(28),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -361,45 +425,47 @@ class _MapPageState extends State<MapPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
+                            Text(
                               'Информация о маршруте',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
+                              style: Theme.of(context).textTheme.titleLarge,
                             ),
                             IconButton(
                               icon: const Icon(Icons.close),
                               onPressed: _clearSelection,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
+                              style: IconButton.styleFrom(
+                                foregroundColor: Theme.of(context).colorScheme.onSurface,
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 16),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
                             Column(
                               children: [
-                                const Text('Расстояние'),
                                 Text(
-                                  selectedRoute!.distance,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                                  'Расстояние',
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                                Text(
+                                  selectedRoute?.distance ?? "",
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: Theme.of(context).colorScheme.primary,
                                   ),
                                 ),
                               ],
                             ),
                             Column(
                               children: [
-                                const Text('Время'),
                                 Text(
-                                  selectedRoute!.duration,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                                  'Время',
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                                Text(
+                                  selectedRoute?.duration ?? "",
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: Theme.of(context).colorScheme.primary,
                                   ),
                                 ),
                               ],
@@ -418,10 +484,12 @@ class _MapPageState extends State<MapPage> {
             child: FloatingActionButton(
               onPressed: _toggleMapLayer,
               tooltip: _isTopographicLayer ? 'Стандартная карта' : 'Топографическая карта',
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black87,
-              elevation: 4,
-              child: Icon(_isTopographicLayer ? Icons.map : Icons.terrain),
+              elevation: 3,
+              backgroundColor: Colors.black87,
+              foregroundColor: Colors.white,
+              child: Icon(
+                _isTopographicLayer ? Icons.map : Icons.terrain,
+              ),
             ),
           ),
           Positioned(
@@ -433,79 +501,81 @@ class _MapPageState extends State<MapPage> {
                 _isSelectingEndPoint = false;
                 _showRoutePlannerBottomSheet();
               },
-              icon: const Icon(Icons.directions),
-              label: const Text('Маршрут'),
-              backgroundColor: Theme.of(context).primaryColor,
+              icon: const Icon(
+                Icons.directions,
+                color: Colors.white,
+              ),
+              label: const Text(
+                'Маршрут',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              backgroundColor: Colors.green,
+              elevation: 3,
             ),
           ),
           if (_routes != null && _routes!.length > 1)
             Positioned(
               left: 16,
               bottom: 80,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+              child: Card(
+                elevation: 3,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios),
-                      onPressed: () {
-                        if (_routePoints == null || _routePoints!.isEmpty || _routes?.isEmpty == true) return;
-                        setState(() {
-                          _selectedRouteIndex = (_selectedRouteIndex - 1 + _routes!.length) % _routes!.length;
-                        });
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 32,
-                        minHeight: 32,
+                color: Theme.of(context).colorScheme.surface,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios),
+                        onPressed: () {
+                          if (_routePoints == null || _routePoints!.isEmpty || _routes?.isEmpty == true) return;
+                          setState(() {
+                            _selectedRouteIndex = (_selectedRouteIndex - 1 + _routes!.length) % _routes!.length;
+                          });
+                        },
+                        style: IconButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
-                      iconSize: 20,
-                    ),
-                    Container(
-                      constraints: const BoxConstraints(minWidth: 120),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Маршрут ${_selectedRouteIndex + 1}/${_routes?.length ?? 0}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${selectedRoute?.distance ?? ""} • ${selectedRoute?.duration ?? ""}',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ],
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 120),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Маршрут ${_selectedRouteIndex + 1}/${_routes?.length ?? 0}',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${selectedRoute?.distance ?? ""} • ${selectedRoute?.duration ?? ""}',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.arrow_forward_ios),
-                      onPressed: () {
-                        if (_routePoints == null || _routePoints!.isEmpty || _routes?.isEmpty == true) return;
-                        setState(() {
-                          _selectedRouteIndex = (_selectedRouteIndex + 1) % _routes!.length;
-                        });
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 32,
-                        minHeight: 32,
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward_ios),
+                        onPressed: () {
+                          if (_routePoints == null || _routePoints!.isEmpty || _routes?.isEmpty == true) return;
+                          setState(() {
+                            _selectedRouteIndex = (_selectedRouteIndex + 1) % _routes!.length;
+                          });
+                        },
+                        style: IconButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
-                      iconSize: 20,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
