@@ -73,9 +73,9 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
 
   Future<void> _toggleLocationTracking() async {
     if (!_isFollowingUser) {
-      if (!_isLocationPermissionGranted) {
-        await _handleLocationPermission();
-        if (!_isLocationPermissionGranted) return;
+      final hasPermission = await LocationService.checkPermission();
+      if (!hasPermission) {
+        return;
       }
 
       final location = await LocationService.getCurrentLocation();
@@ -96,14 +96,21 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
       setState(() {
         _currentLocation = location;
         _isFollowingUser = true;
+        if (_isStartPointGPS) {
+          _startPoint = location;
+          _updateRouteWithCurrentLocation();
+        }
       });
 
       _locationSubscription = LocationService.getLocationStream().listen(
         (location) {
-          setState(() => _currentLocation = location);
-          if (_startPoint != null && _endPoint != null && _isStartPointGPS) {
-            _updateRouteWithCurrentLocation();
-          }
+          setState(() {
+            _currentLocation = location;
+            if (_isStartPointGPS) {
+              _startPoint = location;
+              _updateRouteWithCurrentLocation();
+            }
+          });
         },
         onError: (error) {
           if (mounted) {
@@ -123,45 +130,73 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
       setState(() {
         _isFollowingUser = false;
         _currentLocation = null;
+        if (_isStartPointGPS) {
+          _startPoint = null;
+          _routePoints = null;
+          _routes = null;
+        }
       });
     }
   }
 
-  void _centerOnCurrentLocation() {
-    if (_currentLocation != null) {
-      _mapController.move(_currentLocation!, 16);
-    } else {
+  Future<void> _centerOnCurrentLocation() async {
+    if (!_isFollowingUser) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Включите GPS для определения местоположения'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           margin: const EdgeInsets.all(16),
+          action: SnackBarAction(
+            label: 'Включить',
+            onPressed: _toggleLocationTracking,
+          ),
         ),
       );
+      return;
+    }
+
+    if (_currentLocation != null) {
+      _mapController.move(_currentLocation!, 16);
     }
   }
 
   Future<void> _updateRouteWithCurrentLocation() async {
-    if (_currentLocation != null && _endPoint != null) {
-      final routeResponse = await _routingService.getRoute(
-        _currentLocation!,
-        _endPoint!,
-        _routes?.first.travelMode ?? TravelMode.driving,
-      );
-      setState(() {
-        _routePoints = routeResponse.routes.map((route) => route.points).toList();
-        _routes = [routeResponse.selectedRoute, ...routeResponse.routes.where((r) => r.isAlternative)];
-        _startPoint = _currentLocation;
-        _selectedRouteIndex = 0;
-      });
+    if (_currentLocation != null && _endPoint != null && _routes != null) {
+      try {
+        final routeResponse = await _routingService.getRoute(
+          _currentLocation!,
+          _endPoint!,
+          _routes!.first.travelMode,
+        );
+        if (mounted) {
+          setState(() {
+            _routePoints = routeResponse.routes.map((route) => route.points).toList();
+            _routes = [routeResponse.selectedRoute, ...routeResponse.routes.where((r) => r.isAlternative)];
+            _startPoint = _currentLocation;
+            _selectedRouteIndex = 0;
+            _updateMarkers();
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Ошибка при обновлении маршрута'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+        }
+      }
     }
   }
 
   Future<void> _useCurrentLocationAsStart() async {
-    if (!_isLocationPermissionGranted) {
-      await _handleLocationPermission();
-      if (!_isLocationPermissionGranted) return;
+    final hasPermission = await LocationService.checkPermission();
+    if (!hasPermission) {
+      return;
     }
 
     final location = await LocationService.getCurrentLocation();
@@ -243,6 +278,7 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
       _startPoint = null;
       _endPoint = null;
     });
+    FocusScope.of(context).unfocus();
   }
 
   void _hideInfo() {
@@ -251,6 +287,7 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
       _markers.clear();
       _searchController.clear();
     });
+    FocusScope.of(context).unfocus();
   }
 
   void _toggleMapLayer() {
@@ -260,6 +297,8 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
   }
 
   void _handleMapTap(TapPosition tapPosition, LatLng point) {
+    FocusScope.of(context).unfocus();
+
     if (_isSelectingStartPoint) {
       setState(() {
         _startPoint = point;
@@ -354,7 +393,10 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
           isStartPointGPS: _isStartPointGPS,
         ),
       ),
-    );
+    ).then((_) {
+      // Снимаем фокус после закрытия bottom sheet
+      FocusScope.of(context).unfocus();
+    });
   }
 
   @override
@@ -572,6 +614,7 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
                       
                       _mapController.move(suggestion.location, 15);
                       _searchController.text = suggestion.name;
+                      FocusScope.of(context).unfocus();
                     },
                     emptyBuilder: (context) => Padding(
                       padding: const EdgeInsets.all(16),

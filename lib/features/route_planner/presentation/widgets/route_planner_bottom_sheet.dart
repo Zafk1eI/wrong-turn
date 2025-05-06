@@ -130,7 +130,7 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
     );
   }
 
-  void _useCurrentLocation() {
+  void _useCurrentLocation() async {
     if (!widget.isLocationEnabled) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -160,6 +160,7 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
       _isStartPointGPS = true;
       _startController.text = 'Моё местоположение';
     });
+    widget.onMarkerPlaced?.call(widget.currentLocation!);
   }
 
   @override
@@ -169,56 +170,63 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
         color: Theme.of(context).colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildDragHandle(),
-            const SizedBox(height: 16),
-            _buildLocationInput(
-              controller: _startController,
-              hint: 'Откуда',
-              icon: Icons.my_location,
-              onLocationSelected: (location) {
-                setState(() => _startPoint = location);
-                widget.onMarkerPlaced?.call(location);
-              },
-              pointType: PointType.start,
-            ),
-            const SizedBox(height: 12),
-            _buildLocationInput(
-              controller: _endController,
-              hint: 'Куда',
-              icon: Icons.location_on,
-              onLocationSelected: (location) {
-                setState(() => _endPoint = location);
-                widget.onMarkerPlaced?.call(location);
-              },
-              pointType: PointType.end,
-            ),
-            const SizedBox(height: 24),
-            _buildTravelModeSelector(),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _canBuildRoute() ? _handleRoutePlanning : null,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
-                ),
-                backgroundColor: Colors.green,
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          left: 16,
+          right: 16,
+          top: 8,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDragHandle(),
+              const SizedBox(height: 16),
+              _buildLocationInput(
+                controller: _startController,
+                hint: 'Откуда',
+                icon: Icons.my_location,
+                onLocationSelected: (location) {
+                  setState(() => _startPoint = location);
+                  widget.onMarkerPlaced?.call(location);
+                },
+                pointType: PointType.start,
               ),
-              child: Text(
-                'Проложить маршрут',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+              const SizedBox(height: 12),
+              _buildLocationInput(
+                controller: _endController,
+                hint: 'Куда',
+                icon: Icons.location_on,
+                onLocationSelected: (location) {
+                  setState(() => _endPoint = location);
+                  widget.onMarkerPlaced?.call(location);
+                },
+                pointType: PointType.end,
+              ),
+              const SizedBox(height: 24),
+              _buildTravelModeSelector(),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _canBuildRoute() ? _handleRoutePlanning : null,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  backgroundColor: Colors.green,
+                ),
+                child: Text(
+                  'Проложить маршрут',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -331,6 +339,7 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
             controller.text = suggestion.displayName;
             final location = LatLng(suggestion.lat, suggestion.lon);
             onLocationSelected(location);
+            FocusScope.of(context).unfocus();
           },
           emptyBuilder: (context) => Padding(
             padding: const EdgeInsets.all(16),
@@ -355,25 +364,35 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
   }
 
   Widget _buildTravelModeSelector() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildModeOption(
-          mode: TravelMode.walking,
-          icon: Icons.directions_walk,
-          label: 'Пешком',
-        ),
-        _buildModeOption(
-          mode: TravelMode.driving,
-          icon: Icons.directions_car,
-          label: 'На машине',
-        ),
-        _buildModeOption(
-          mode: TravelMode.cycling,
-          icon: Icons.directions_bike,
-          label: 'На велосипеде',
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              const SizedBox(width: 8),
+              _buildModeOption(
+                mode: TravelMode.walking,
+                icon: Icons.directions_walk,
+                label: 'Пешком',
+              ),
+              const SizedBox(width: 8),
+              _buildModeOption(
+                mode: TravelMode.driving,
+                icon: Icons.directions_car,
+                label: 'На машине',
+              ),
+              const SizedBox(width: 8),
+              _buildModeOption(
+                mode: TravelMode.cycling,
+                icon: Icons.directions_bike,
+                label: 'На велосипеде',
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -391,7 +410,7 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
         onTap: () => setState(() => _selectedMode = mode),
         borderRadius: BorderRadius.circular(28),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: isSelected ? Colors.green : Colors.transparent,
             borderRadius: BorderRadius.circular(28),
@@ -401,17 +420,19 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
             ),
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
                 color: isSelected ? Colors.white : colorScheme.onSurface,
-                size: 20,
+                size: 18,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
               Text(
                 label,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: isSelected ? Colors.white : colorScheme.onSurface,
+                  fontSize: 13,
                 ),
               ),
             ],
@@ -429,6 +450,7 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
     if (_canBuildRoute()) {
       final startPoint = _isStartPointGPS ? widget.currentLocation! : _startPoint!;
       widget.onRoutePlanned(startPoint, _endPoint!, _selectedMode);
+      Navigator.pop(context);
     }
   }
 } 

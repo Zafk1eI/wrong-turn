@@ -1,16 +1,27 @@
+import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 class LocationService {
   /// Проверяет и запрашивает разрешения на использование геолокации
   static Future<bool> checkPermission() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // Проверяем, включены ли сервисы геолокации
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      return false;
+      // Если сервисы геолокации выключены, запрашиваем их включение
+      serviceEnabled = await Geolocator.openLocationSettings();
+      if (!serviceEnabled) {
+        return false;
+      }
     }
 
-    LocationPermission permission = await Geolocator.checkPermission();
+    // Проверяем разрешения
+    permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
+      // Если разрешения отклонены, запрашиваем их
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
         return false;
@@ -18,6 +29,8 @@ class LocationService {
     }
 
     if (permission == LocationPermission.deniedForever) {
+      // Если разрешения отклонены навсегда, предлагаем перейти в настройки
+      await Geolocator.openAppSettings();
       return false;
     }
 
@@ -48,6 +61,6 @@ class LocationService {
         accuracy: LocationAccuracy.high,
         distanceFilter: 10, // Минимальное расстояние (в метрах) для обновления
       ),
-    ).map((position) => LatLng(position.latitude, position.longitude));
+    ).map((Position position) => LatLng(position.latitude, position.longitude));
   }
 } 
