@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:osm_nominatim/osm_nominatim.dart';
 import '../../../../core/models/route_models.dart';
+import '../../../map/data/services/location_service.dart';
 
 enum PointType {
   start,
@@ -27,6 +28,9 @@ class RoutePlannerBottomSheet extends StatefulWidget {
   final Function(PointType)? onMapPointSelect;
   final LatLng? initialStartPoint;
   final LatLng? initialEndPoint;
+  final LatLng? currentLocation;
+  final bool isLocationEnabled;
+  final bool isStartPointGPS;
   
   const RoutePlannerBottomSheet({
     Key? key,
@@ -35,6 +39,9 @@ class RoutePlannerBottomSheet extends StatefulWidget {
     this.onMapPointSelect,
     this.initialStartPoint,
     this.initialEndPoint,
+    this.currentLocation,
+    this.isLocationEnabled = false,
+    this.isStartPointGPS = false,
   }) : super(key: key);
 
   @override
@@ -47,16 +54,21 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
   TravelMode _selectedMode = TravelMode.driving;
   LatLng? _startPoint;
   LatLng? _endPoint;
+  bool _isStartPointGPS = false;
 
   @override
   void initState() {
     super.initState();
     _startPoint = widget.initialStartPoint;
     _endPoint = widget.initialEndPoint;
+    _isStartPointGPS = widget.isStartPointGPS;
     
-    // Если есть начальные точки, обновляем текстовые поля
     if (_startPoint != null) {
-      _updateLocationText(_startPoint!, _startController);
+      if (_isStartPointGPS) {
+        _startController.text = 'Моё местоположение';
+      } else {
+        _updateLocationText(_startPoint!, _startController);
+      }
     }
     if (_endPoint != null) {
       _updateLocationText(_endPoint!, _endController);
@@ -116,6 +128,38 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
         duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  void _useCurrentLocation() {
+    if (!widget.isLocationEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Включите GPS для использования текущего местоположения'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
+    if (widget.currentLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Не удалось получить текущее местоположение'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _startPoint = widget.currentLocation;
+      _isStartPointGPS = true;
+      _startController.text = 'Моё местоположение';
+    });
   }
 
   @override
@@ -211,12 +255,35 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
                 icon,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.map),
-                onPressed: () => _handleMapPointSelect(pointType),
-                style: IconButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (pointType == PointType.start)
+                    IconButton(
+                      icon: Icon(
+                        Icons.my_location,
+                        color: widget.isLocationEnabled ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      onPressed: _useCurrentLocation,
+                      style: IconButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.map),
+                    onPressed: () {
+                      if (pointType == PointType.start) {
+                        setState(() {
+                          _isStartPointGPS = false;
+                        });
+                      }
+                      _handleMapPointSelect(pointType);
+                    },
+                    style: IconButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(28),
@@ -261,6 +328,11 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
             );
           },
           onSuggestionSelected: (suggestion) {
+            if (pointType == PointType.start) {
+              setState(() {
+                _isStartPointGPS = false;
+              });
+            }
             controller.text = suggestion.displayName;
             final location = LatLng(suggestion.lat, suggestion.lon);
             onLocationSelected(location);
@@ -347,12 +419,13 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
   }
 
   bool _canBuildRoute() {
-    return _startPoint != null && _endPoint != null;
+    return (_startPoint != null || (_isStartPointGPS && widget.currentLocation != null)) && _endPoint != null;
   }
 
   void _handleRoutePlanning() {
     if (_canBuildRoute()) {
-      widget.onRoutePlanned(_startPoint!, _endPoint!, _selectedMode);
+      final startPoint = _isStartPointGPS ? widget.currentLocation! : _startPoint!;
+      widget.onRoutePlanned(startPoint, _endPoint!, _selectedMode);
     }
   }
 } 

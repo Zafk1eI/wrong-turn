@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import '../../data/services/places_service.dart';
+import '../../data/services/location_service.dart';
 import '../../data/models/place.dart' as map_place;
 import '../../../route_planner/presentation/widgets/route_planner_bottom_sheet.dart' show RoutePlannerBottomSheet, PointType;
 import '../../../route_planner/data/services/routing_service.dart';
@@ -15,7 +17,7 @@ class MapPage extends StatefulWidget {
   State<MapPage> createState() => _MapPageState();
 }
 
-class _MapPageState extends State<MapPage> {
+class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
   final PlacesService _placesService = PlacesService();
   final RoutingService _routingService = RoutingService();
   final MapController _mapController = MapController();
@@ -30,26 +32,194 @@ class _MapPageState extends State<MapPage> {
   bool _isSelectingEndPoint = false;
   LatLng? _startPoint;
   LatLng? _endPoint;
+  LatLng? _currentLocation;
+  bool _isFollowingUser = false;
+  StreamSubscription<LatLng>? _locationSubscription;
+  bool _isLocationPermissionGranted = false;
+  bool _isStartPointGPS = false;
 
   static const String _standardLayer = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   static const String _topographicLayer = 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
 
   RouteInfo? get selectedRoute => _routes?.isNotEmpty == true ? _routes![_selectedRouteIndex] : null;
 
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _locationSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _handleLocationPermission() async {
+    final hasPermission = await LocationService.checkPermission();
+    setState(() => _isLocationPermissionGranted = hasPermission);
+    if (!hasPermission) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Для работы приложения необходим доступ к геолокации'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleLocationTracking() async {
+    if (!_isFollowingUser) {
+      if (!_isLocationPermissionGranted) {
+        await _handleLocationPermission();
+        if (!_isLocationPermissionGranted) return;
+      }
+
+      final location = await LocationService.getCurrentLocation();
+      if (location == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Не удалось получить текущее местоположение'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _currentLocation = location;
+        _isFollowingUser = true;
+      });
+
+      _locationSubscription = LocationService.getLocationStream().listen(
+        (location) {
+          setState(() => _currentLocation = location);
+          if (_startPoint != null && _endPoint != null && _isStartPointGPS) {
+            _updateRouteWithCurrentLocation();
+          }
+        },
+        onError: (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Ошибка при отслеживании местоположения'),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                margin: const EdgeInsets.all(16),
+              ),
+            );
+          }
+        },
+      );
+    } else {
+      _locationSubscription?.cancel();
+      setState(() {
+        _isFollowingUser = false;
+        _currentLocation = null;
+      });
+    }
+  }
+
+  void _centerOnCurrentLocation() {
+    if (_currentLocation != null) {
+      _mapController.move(_currentLocation!, 16);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Включите GPS для определения местоположения'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
+  }
+
+  Future<void> _updateRouteWithCurrentLocation() async {
+    if (_currentLocation != null && _endPoint != null) {
+      final routeResponse = await _routingService.getRoute(
+        _currentLocation!,
+        _endPoint!,
+        _routes?.first.travelMode ?? TravelMode.driving,
+      );
+      setState(() {
+        _routePoints = routeResponse.routes.map((route) => route.points).toList();
+        _routes = [routeResponse.selectedRoute, ...routeResponse.routes.where((r) => r.isAlternative)];
+        _startPoint = _currentLocation;
+        _selectedRouteIndex = 0;
+      });
+    }
+  }
+
+  Future<void> _useCurrentLocationAsStart() async {
+    if (!_isLocationPermissionGranted) {
+      await _handleLocationPermission();
+      if (!_isLocationPermissionGranted) return;
+    }
+
+    final location = await LocationService.getCurrentLocation();
+    if (location == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Не удалось получить текущее местоположение'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _startPoint = location;
+      _currentLocation = location;
+      _isFollowingUser = true;
+      _updateMarkers();
+    });
+
+    _locationSubscription?.cancel();
+    _locationSubscription = LocationService.getLocationStream().listen(
+      (location) {
+        setState(() => _currentLocation = location);
+        if (_endPoint != null) {
+          _updateRouteWithCurrentLocation();
+        }
+      },
+    );
+  }
+
   void _handleRoutePlanned(LatLng start, LatLng end, TravelMode mode) async {
+    setState(() {
+      if (start == _currentLocation) {
+        _isStartPointGPS = true;
+      } else {
+        _isStartPointGPS = false;
+        _startPoint = start;
+      }
+      _endPoint = end;
+    });
+
     final routeResponse = await _routingService.getRoute(start, end, mode);
+    if (!mounted) return;
+
     setState(() {
       _routePoints = routeResponse.routes.map((route) => route.points).toList();
       _routes = [routeResponse.selectedRoute, ...routeResponse.routes.where((r) => r.isAlternative)];
-      _startPoint = start;
-      _endPoint = end;
       _selectedRouteIndex = 0;
       _selectedPlace = null;
       _searchController.clear();
       _updateMarkers();
     });
 
-    // Подстраиваем карту под маршрут
     if (_routePoints != null && _routePoints!.isNotEmpty) {
       final allPoints = _routePoints!.expand((points) => points).toList();
       final bounds = LatLngBounds.fromPoints(allPoints);
@@ -77,6 +247,7 @@ class _MapPageState extends State<MapPage> {
     setState(() {
       _selectedPlace = null;
       _markers.clear();
+      _searchController.clear();
     });
   }
 
@@ -90,6 +261,7 @@ class _MapPageState extends State<MapPage> {
     if (_isSelectingStartPoint) {
       setState(() {
         _startPoint = point;
+        _isStartPointGPS = false;
         _updateMarkers();
       });
       _isSelectingStartPoint = false;
@@ -107,7 +279,7 @@ class _MapPageState extends State<MapPage> {
   void _updateMarkers() {
     setState(() {
       _markers.clear();
-      if (_startPoint != null) {
+      if (_startPoint != null && !_isStartPointGPS) {
         _markers.add(
           Marker(
             point: _startPoint!,
@@ -160,6 +332,7 @@ class _MapPageState extends State<MapPage> {
             if (_isSelectingStartPoint) {
               setState(() {
                 _startPoint = location;
+                _isStartPointGPS = false;
                 _updateMarkers();
               });
               _isSelectingStartPoint = false;
@@ -172,8 +345,11 @@ class _MapPageState extends State<MapPage> {
             }
           },
           onMapPointSelect: _handleMapPointSelect,
-          initialStartPoint: _startPoint,
+          initialStartPoint: _isStartPointGPS ? _currentLocation : _startPoint,
           initialEndPoint: _endPoint,
+          currentLocation: _currentLocation,
+          isLocationEnabled: _isFollowingUser,
+          isStartPointGPS: _isStartPointGPS,
         ),
       ),
     );
@@ -216,8 +392,62 @@ class _MapPageState extends State<MapPage> {
                         )),
                   ],
                 ),
-              MarkerLayer(markers: _markers),
+              MarkerLayer(markers: [
+                ..._markers,
+                if (_currentLocation != null)
+                  Marker(
+                    point: _currentLocation!,
+                    width: 20,
+                    height: 20,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ]),
             ],
+          ),
+          Positioned(
+            right: 16,
+            bottom: 240,
+            child: FloatingActionButton(
+              onPressed: _toggleLocationTracking,
+              tooltip: _isFollowingUser ? 'Отключить GPS' : 'Включить GPS',
+              elevation: 3,
+              backgroundColor: _isFollowingUser ? Colors.blue : Colors.black87,
+              foregroundColor: Colors.white,
+              child: Icon(
+                _isFollowingUser ? Icons.location_on : Icons.location_off,
+              ),
+            ),
+          ),
+          Positioned(
+            right: 16,
+            bottom: 160,
+            child: FloatingActionButton(
+              onPressed: _centerOnCurrentLocation,
+              tooltip: 'Показать моё местоположение',
+              elevation: 3,
+              backgroundColor: Colors.black87,
+              foregroundColor: Colors.white,
+              child: const Icon(Icons.my_location),
+            ),
+          ),
+          Positioned(
+            right: 16,
+            bottom: 80,
+            child: FloatingActionButton(
+              onPressed: _toggleMapLayer,
+              tooltip: _isTopographicLayer ? 'Стандартная карта' : 'Топографическая карта',
+              elevation: 3,
+              backgroundColor: Colors.black87,
+              foregroundColor: Colors.white,
+              child: Icon(
+                _isTopographicLayer ? Icons.map : Icons.terrain,
+              ),
+            ),
           ),
           Positioned(
             top: 50,
@@ -232,7 +462,7 @@ class _MapPageState extends State<MapPage> {
                   ),
                   child: TypeAheadField<map_place.Place>(
                     textFieldConfiguration: TextFieldConfiguration(
-                      controller: _searchController,
+                  controller: _searchController,
                       decoration: InputDecoration(
                         hintText: 'Поиск места...',
                         filled: true,
@@ -257,14 +487,14 @@ class _MapPageState extends State<MapPage> {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: _clearSelection,
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: _clearSelection,
                                 style: IconButton.styleFrom(
                                   foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
                                 ),
-                              )
-                            : null,
+                            )
+                          : null,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                       ),
                     ),
@@ -274,11 +504,11 @@ class _MapPageState extends State<MapPage> {
                       color: Theme.of(context).colorScheme.surface,
                       constraints: const BoxConstraints(maxHeight: 300),
                     ),
-                    suggestionsCallback: (pattern) async {
+                  suggestionsCallback: (pattern) async {
                       if (pattern.isEmpty) return [];
-                      final places = await _placesService.searchPlaces(pattern);
+                    final places = await _placesService.searchPlaces(pattern);
                       if (places.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: const Text('По вашему запросу ничего не найдено'),
                             behavior: SnackBarBehavior.floating,
@@ -286,13 +516,13 @@ class _MapPageState extends State<MapPage> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             margin: const EdgeInsets.all(16),
-                          ),
-                        );
-                      }
-                      return places;
-                    },
+                        ),
+                      );
+                    }
+                    return places;
+                  },
                     itemBuilder: (context, map_place.Place suggestion) {
-                      return ListTile(
+                    return ListTile(
                         leading: Icon(
                           suggestion.typeIcon,
                           color: Theme.of(context).colorScheme.primary,
@@ -301,9 +531,9 @@ class _MapPageState extends State<MapPage> {
                           suggestion.name,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                             Text(
                               'Тип: ${suggestion.localizedType}',
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -316,32 +546,32 @@ class _MapPageState extends State<MapPage> {
                                 color: Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                             ),
-                          ],
-                        ),
-                        isThreeLine: true,
-                      );
-                    },
+                        ],
+                      ),
+                      isThreeLine: true,
+                    );
+                  },
                     onSuggestionSelected: (map_place.Place suggestion) {
-                      setState(() {
-                        _selectedPlace = suggestion;
-                        _markers.clear();
-                        _markers.add(
-                          Marker(
-                            point: suggestion.location,
-                            width: 40,
-                            height: 40,
-                            child: Icon(
-                              suggestion.typeIcon,
+                    setState(() {
+                      _selectedPlace = suggestion;
+                      _markers.clear();
+                      _markers.add(
+                        Marker(
+                          point: suggestion.location,
+                          width: 40,
+                          height: 40,
+                          child: Icon(
+                            suggestion.typeIcon,
                               color: Theme.of(context).colorScheme.primary,
-                              size: 40,
-                            ),
+                            size: 40,
                           ),
-                        );
-                      });
-                      
-                      _mapController.move(suggestion.location, 15);
-                      _searchController.text = suggestion.name;
-                    },
+                        ),
+                      );
+                    });
+                    
+                    _mapController.move(suggestion.location, 15);
+                    _searchController.text = suggestion.name;
+                  },
                     noItemsFoundBuilder: (context) => Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text(
@@ -480,20 +710,6 @@ class _MapPageState extends State<MapPage> {
           ),
           Positioned(
             right: 16,
-            bottom: 80,
-            child: FloatingActionButton(
-              onPressed: _toggleMapLayer,
-              tooltip: _isTopographicLayer ? 'Стандартная карта' : 'Топографическая карта',
-              elevation: 3,
-              backgroundColor: Colors.black87,
-              foregroundColor: Colors.white,
-              child: Icon(
-                _isTopographicLayer ? Icons.map : Icons.terrain,
-              ),
-            ),
-          ),
-          Positioned(
-            right: 16,
             bottom: 16,
             child: FloatingActionButton.extended(
               onPressed: () {
@@ -577,8 +793,8 @@ class _MapPageState extends State<MapPage> {
                     ],
                   ),
                 ),
-              ),
             ),
+          ),
         ],
       ),
     );

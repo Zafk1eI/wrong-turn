@@ -148,6 +148,7 @@ class RoutingService {
             duration: duration,
             isAlternative: i > 0, // Первый маршрут основной, остальные альтернативные
             index: i,
+            travelMode: mode,
           ));
         }
 

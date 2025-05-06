@@ -1,8 +1,8 @@
 import 'package:latlong2/latlong.dart';
 
 enum TravelMode {
-  walking,
   driving,
+  walking,
   cycling,
 }
 
@@ -12,6 +12,7 @@ class RouteInfo {
   final String duration;
   final bool isAlternative;
   final int? index;
+  final TravelMode travelMode;
 
   RouteInfo({
     required this.points,
@@ -19,6 +20,7 @@ class RouteInfo {
     required this.duration,
     this.isAlternative = false,
     this.index,
+    required this.travelMode,
   });
 }
 
