@@ -247,74 +247,69 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
     return Column(
       children: [
         TypeAheadField<SearchPlace>(
-          textFieldConfiguration: TextFieldConfiguration(
-            controller: controller,
-            decoration: InputDecoration(
-              hintText: hint,
-              prefixIcon: Icon(
-                icon,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              suffixIcon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (pointType == PointType.start)
-                    IconButton(
-                      icon: Icon(
-                        Icons.my_location,
-                        color: widget.isLocationEnabled ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
+          controller: controller,
+          suggestionsCallback: _getSuggestions,
+          builder: (context, controller, focusNode) {
+            return TextField(
+              controller: controller,
+              focusNode: focusNode,
+              decoration: InputDecoration(
+                hintText: hint,
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(28),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(28),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(28),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 2,
+                  ),
+                ),
+                prefixIcon: Icon(
+                  icon,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (pointType == PointType.start)
+                      IconButton(
+                        icon: Icon(
+                          Icons.my_location,
+                          color: widget.isLocationEnabled ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        onPressed: _useCurrentLocation,
+                        style: IconButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                      onPressed: _useCurrentLocation,
+                    IconButton(
+                      icon: const Icon(Icons.map),
+                      onPressed: () {
+                        if (pointType == PointType.start) {
+                          setState(() {
+                            _isStartPointGPS = false;
+                          });
+                        }
+                        _handleMapPointSelect(pointType);
+                      },
                       style: IconButton.styleFrom(
                         foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
-                  IconButton(
-                    icon: const Icon(Icons.map),
-                    onPressed: () {
-                      if (pointType == PointType.start) {
-                        setState(() {
-                          _isStartPointGPS = false;
-                        });
-                      }
-                      _handleMapPointSelect(pointType);
-                    },
-                    style: IconButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(28),
-                borderSide: BorderSide(
-                  color: Theme.of(context).colorScheme.outline,
+                  ],
                 ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(28),
-                borderSide: BorderSide(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(28),
-                borderSide: BorderSide(
-                  color: Theme.of(context).colorScheme.primary,
-                  width: 2,
-                ),
-              ),
-              filled: true,
-              fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            ),
-          ),
-          suggestionsBoxDecoration: SuggestionsBoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            elevation: 4,
-            color: Theme.of(context).colorScheme.surface,
-          ),
-          suggestionsCallback: _getSuggestions,
+            );
+          },
           itemBuilder: (context, suggestion) {
             return ListTile(
               leading: Icon(
@@ -327,7 +322,7 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
               ),
             );
           },
-          onSuggestionSelected: (suggestion) {
+          onSelected: (suggestion) {
             if (pointType == PointType.start) {
               setState(() {
                 _isStartPointGPS = false;
@@ -337,7 +332,7 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
             final location = LatLng(suggestion.lat, suggestion.lon);
             onLocationSelected(location);
           },
-          noItemsFoundBuilder: (context) => Padding(
+          emptyBuilder: (context) => Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
               'Ничего не найдено',
@@ -346,6 +341,14 @@ class _RoutePlannerBottomSheetState extends State<RoutePlannerBottomSheet> {
               ),
             ),
           ),
+          decorationBuilder: (context, child) {
+            return Material(
+              borderRadius: BorderRadius.circular(8),
+              elevation: 4,
+              color: Theme.of(context).colorScheme.surface,
+              child: child,
+            );
+          },
         ),
       ],
     );

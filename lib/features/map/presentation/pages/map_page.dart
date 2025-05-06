@@ -223,9 +223,11 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
     if (_routePoints != null && _routePoints!.isNotEmpty) {
       final allPoints = _routePoints!.expand((points) => points).toList();
       final bounds = LatLngBounds.fromPoints(allPoints);
-      _mapController.fitBounds(
-        bounds,
-        options: const FitBoundsOptions(padding: EdgeInsets.all(50)),
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.all(50),
+        ),
       );
     }
   }
@@ -388,7 +390,8 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
                           points: entry.value,
                           color: Colors.blue.withOpacity(0.5),
                           strokeWidth: 3,
-                          isDotted: true,
+                          strokeCap: StrokeCap.round,
+                          strokeJoin: StrokeJoin.round,
                         )),
                   ],
                 ),
@@ -461,54 +464,12 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
                     borderRadius: BorderRadius.circular(28),
                   ),
                   child: TypeAheadField<map_place.Place>(
-                    textFieldConfiguration: TextFieldConfiguration(
-                  controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Поиск места...',
-                        filled: true,
-                        fillColor: Theme.of(context).colorScheme.surface,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(28),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(28),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(28),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: _clearSelection,
-                                style: IconButton.styleFrom(
-                                  foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-                                ),
-                            )
-                          : null,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                      ),
-                    ),
-                    suggestionsBoxDecoration: SuggestionsBoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      elevation: 4,
-                      color: Theme.of(context).colorScheme.surface,
-                      constraints: const BoxConstraints(maxHeight: 300),
-                    ),
-                  suggestionsCallback: (pattern) async {
+                    controller: _searchController,
+                    suggestionsCallback: (pattern) async {
                       if (pattern.isEmpty) return [];
-                    final places = await _placesService.searchPlaces(pattern);
+                      final places = await _placesService.searchPlaces(pattern);
                       if (places.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: const Text('По вашему запросу ничего не найдено'),
                             behavior: SnackBarBehavior.floating,
@@ -516,13 +477,53 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             margin: const EdgeInsets.all(16),
+                          ),
+                        );
+                      }
+                      return places;
+                    },
+                    builder: (context, controller, focusNode) {
+                      return TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        decoration: InputDecoration(
+                          hintText: 'Поиск места...',
+                          filled: true,
+                          fillColor: Theme.of(context).colorScheme.surface,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(28),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(28),
+                            borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(28),
+                            borderSide: BorderSide(
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 2,
+                            ),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          suffixIcon: controller.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: _clearSelection,
+                                style: IconButton.styleFrom(
+                                  foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              )
+                            : null,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         ),
                       );
-                    }
-                    return places;
-                  },
-                    itemBuilder: (context, map_place.Place suggestion) {
-                    return ListTile(
+                    },
+                    itemBuilder: (context, suggestion) {
+                      return ListTile(
                         leading: Icon(
                           suggestion.typeIcon,
                           color: Theme.of(context).colorScheme.primary,
@@ -531,9 +532,9 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
                           suggestion.name,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
                               'Тип: ${suggestion.localizedType}',
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -546,33 +547,33 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
                                 color: Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                             ),
-                        ],
-                      ),
-                      isThreeLine: true,
-                    );
-                  },
-                    onSuggestionSelected: (map_place.Place suggestion) {
-                    setState(() {
-                      _selectedPlace = suggestion;
-                      _markers.clear();
-                      _markers.add(
-                        Marker(
-                          point: suggestion.location,
-                          width: 40,
-                          height: 40,
-                          child: Icon(
-                            suggestion.typeIcon,
-                              color: Theme.of(context).colorScheme.primary,
-                            size: 40,
-                          ),
+                          ],
                         ),
+                        isThreeLine: true,
                       );
-                    });
-                    
-                    _mapController.move(suggestion.location, 15);
-                    _searchController.text = suggestion.name;
-                  },
-                    noItemsFoundBuilder: (context) => Padding(
+                    },
+                    onSelected: (suggestion) {
+                      setState(() {
+                        _selectedPlace = suggestion;
+                        _markers.clear();
+                        _markers.add(
+                          Marker(
+                            point: suggestion.location,
+                            width: 40,
+                            height: 40,
+                            child: Icon(
+                              suggestion.typeIcon,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 40,
+                            ),
+                          ),
+                        );
+                      });
+                      
+                      _mapController.move(suggestion.location, 15);
+                      _searchController.text = suggestion.name;
+                    },
+                    emptyBuilder: (context) => Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text(
                         'Ничего не найдено',
@@ -581,6 +582,14 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
                         ),
                       ),
                     ),
+                    decorationBuilder: (context, child) {
+                      return Material(
+                        borderRadius: BorderRadius.circular(8),
+                        elevation: 4,
+                        color: Theme.of(context).colorScheme.surface,
+                        child: child,
+                      );
+                    },
                   ),
                 ),
                 if (_selectedPlace != null)
@@ -793,8 +802,8 @@ class _MapPageState extends State<MapPage> with SingleTickerProviderStateMixin {
                     ],
                   ),
                 ),
+              ),
             ),
-          ),
         ],
       ),
     );
